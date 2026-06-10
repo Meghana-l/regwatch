@@ -1,6 +1,6 @@
 # RegWatch — Regulatory Reporting Control Dashboard
 
-**Live demo → [meghana-l.github.io/regwatch](https://meghana-l.github.io/regwatch)**
+**Live demo → https://meghana-l.github.io/regwatch/**
 
 A regulatory reporting control dashboard that mirrors what a global reporting team deals with daily — filing deadline tracking across 7 regulators, position reconciliation, exception triage, regulatory impact mapping, and a full audit trail.
 
