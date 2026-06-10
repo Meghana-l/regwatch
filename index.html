@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RegWatch — Regulatory Reporting Control Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#f8f9fb; --surface:#ffffff; --surface2:#f1f4f8;
+  --border:#e2e8f0; --border2:#cbd5e1;
+  --text:#0f172a; --muted:#64748b; --muted2:#94a3b8;
+  --accent:#0f766e; --accent2:#0369a1;
+  --warn:#b45309; --warn-bg:#fef3c7; --warn-border:#fcd34d;
+  --danger:#dc2626; --danger-bg:#fef2f2; --danger-border:#fca5a5;
+  --success:#15803d; --success-bg:#f0fdf4; --success-border:#86efac;
+  --purple:#6d28d9; --purple-bg:#f5f3ff; --purple-border:#c4b5fd;
+  --indigo:#4338ca;
+  --mono:'IBM Plex Mono',monospace; --sans:'Inter',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;min-height:100vh}
+
+.shell{max-width:1320px;margin:0 auto;padding:0 28px 56px}
+
+/* ── Top bar ── */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:18px 0;border-bottom:2px solid var(--border);margin-bottom:24px;background:var(--surface);position:sticky;top:0;z-index:50;margin-left:-28px;margin-right:-28px;padding-left:28px;padding-right:28px}
+.logo{display:flex;align-items:center;gap:12px}
+.logo-mark{width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,var(--indigo),var(--accent2));display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:13px;font-weight:500;color:#fff}
+.logo-name{font-size:16px;font-weight:600;letter-spacing:-.4px;color:var(--text)}
+.logo-sub{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:1px;letter-spacing:.3px}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.badge-live{display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;color:var(--success);background:var(--success-bg);border:1px solid var(--success-border);padding:4px 10px;border-radius:20px;font-weight:500}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--success);animation:pulse 1.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.run-btn{background:var(--indigo);color:#fff;border:none;font-family:var(--sans);font-size:13px;font-weight:500;padding:8px 18px;border-radius:7px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:6px}
+.run-btn:hover{background:#3730a3}
+.run-btn:disabled{opacity:.5;cursor:not-allowed}
+.timestamp{font-family:var(--mono);font-size:10px;color:var(--muted)}
+
+/* ── Loader overlay ── */
+#loader{position:fixed;inset:0;background:rgba(248,249,251,0.97);z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+.loader-logo{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.loader-mark{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,var(--indigo),var(--accent2));display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:15px;font-weight:500;color:#fff}
+.loader-name{font-size:20px;font-weight:600;color:var(--text)}
+.loader-steps{display:flex;flex-direction:column;gap:9px;min-width:340px}
+.lstep{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:11px;color:var(--muted2);transition:color .3s}
+.lstep.done{color:var(--success)}
+.lstep.active{color:var(--text);font-weight:500}
+.lstep-icon{width:16px;text-align:center}
+.progress-bar{width:340px;height:3px;background:var(--border);border-radius:2px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--indigo),var(--accent2));border-radius:2px;width:0%;transition:width .4s ease}
+
+/* ── KPI row ── */
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:24px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;position:relative;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.04)}
+.kpi::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--kpi-c,var(--indigo))}
+.kpi-label{font-size:11px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.kpi-value{font-size:26px;font-weight:300;letter-spacing:-1px;color:var(--text)}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:4px}
+
+/* ── Section label ── */
+.section-label{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px;margin-top:4px}
+
+/* ── Filing deadline cards ── */
+.deadlines-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.dc{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;position:relative;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.04);transition:box-shadow .2s}
+.dc:hover{box-shadow:0 3px 8px rgba(0,0,0,0.08)}
+.dc::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--dc-c,var(--border2))}
+.dc-reg{font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px;font-weight:500}
+.dc-filing{font-size:12px;font-weight:600;margin-bottom:4px;color:var(--text)}
+.dc-desc{font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.4}
+.dc-date{font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:6px}
+.dc-days{font-size:11px;font-weight:500;margin-top:6px}
+
+/* ── Badges ── */
+.badge{display:inline-flex;align-items:center;font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px;font-weight:600;white-space:nowrap;letter-spacing:.3px}
+.b-critical{background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger-border)}
+.b-high{background:var(--warn-bg);color:var(--warn);border:1px solid var(--warn-border)}
+.b-medium{background:#eff6ff;color:var(--accent2);border:1px solid #bfdbfe}
+.b-low{background:var(--surface2);color:var(--muted);border:1px solid var(--border2)}
+.b-overdue{background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger-border)}
+.b-soon{background:var(--warn-bg);color:var(--warn);border:1px solid var(--warn-border)}
+.b-upcoming{background:var(--success-bg);color:var(--success);border:1px solid var(--success-border)}
+.b-filed{background:var(--surface2);color:var(--muted);border:1px solid var(--border2)}
+.ap{font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:4px;border:1px solid var(--border2);color:var(--muted);font-weight:500}
+.ap-eq{border-color:#86efac;color:var(--success);background:var(--success-bg)}
+.ap-fx{border-color:#bfdbfe;color:var(--accent2);background:#eff6ff}
+.ap-fu{border-color:var(--warn-border);color:var(--warn);background:var(--warn-bg)}
+.ap-da{border-color:var(--purple-border);color:var(--purple);background:var(--purple-bg)}
+.reg-pill{font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:4px;border:1px solid var(--purple-border);color:var(--indigo);background:var(--purple-bg);font-weight:500;margin-right:3px}
+
+/* ── Main grid ── */
+.main-grid{display:grid;grid-template-columns:1fr 390px;gap:18px;align-items:start}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.04)}
+.panel-head{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--surface)}
+.panel-title{font-size:13px;font-weight:600;color:var(--text)}
+.panel-meta{font-family:var(--mono);font-size:10px;color:var(--muted)}
+
+/* ── Filters ── */
+.filters{padding:10px 20px;display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--border);background:var(--bg)}
+.fbtn{font-size:12px;font-weight:500;padding:5px 12px;border-radius:6px;border:1px solid var(--border2);background:var(--surface);color:var(--muted);cursor:pointer;transition:all .15s}
+.fbtn.on{border-color:var(--indigo);color:var(--indigo);background:var(--purple-bg)}
+.fbtn:hover:not(.on){color:var(--text);border-color:var(--border2);background:var(--surface2)}
+
+/* ── Table ── */
+.table-wrap{max-height:420px;overflow-y:auto}
+.table-wrap::-webkit-scrollbar{width:4px}
+.table-wrap::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+table{width:100%;border-collapse:collapse}
+th{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;padding:10px 16px;text-align:left;border-bottom:2px solid var(--border);white-space:nowrap;background:var(--bg)}
+td{padding:11px 16px;border-bottom:1px solid var(--border);font-size:12px;vertical-align:middle}
+.erow{cursor:pointer;transition:background .1s}
+.erow:hover{background:var(--surface2)}
+.erow.sel{background:var(--purple-bg);border-left:3px solid var(--indigo)}
+
+/* ── Confidence bar ── */
+.cbar-wrap{display:flex;align-items:center;gap:6px}
+.cbar{height:5px;border-radius:3px;background:var(--border);width:50px}
+.cfill{height:100%;border-radius:3px;background:var(--indigo)}
+.cval{font-family:var(--mono);font-size:10px;color:var(--muted);min-width:28px}
+
+/* ── Sidebar ── */
+.sidebar{display:flex;flex-direction:column;gap:16px}
+.detail-body{padding:16px 20px}
+.detail-empty{font-size:12px;color:var(--muted);line-height:1.8;font-style:italic}
+.drow{display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px}
+.drow:last-child{border:none}
+.dlabel{color:var(--muted);font-weight:500}
+.dval{font-family:var(--mono);font-size:11px;text-align:right;max-width:200px;word-break:break-all;color:var(--text)}
+.break-box{margin-top:12px;padding:12px 14px;background:var(--danger-bg);border:1px solid var(--danger-border);border-radius:8px}
+.box-lbl{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px}
+.break-amt{color:var(--danger);font-size:22px;font-weight:500;letter-spacing:-.5px;font-family:var(--mono)}
+.reg-box{margin-top:10px;padding:12px 14px;background:var(--purple-bg);border:1px solid var(--purple-border);border-radius:8px}
+.reg-item{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:11px;color:var(--muted)}
+.ai-box{margin-top:10px;padding:12px 14px;background:#f0fdf4;border:1px solid var(--success-border);border-radius:8px}
+.ai-cause{font-size:12px;color:var(--text);line-height:1.7;margin-bottom:8px}
+.ai-action-text{font-size:11px;color:var(--success);line-height:1.7;padding-top:8px;border-top:1px solid var(--border);font-weight:500}
+.action-row{display:flex;gap:8px;margin-top:12px}
+.abtn{flex:1;padding:8px 0;border-radius:7px;font-family:var(--sans);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;border:none}
+.abtn-p{background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger-border)}
+.abtn-p:hover{background:#fee2e2}
+.abtn-g{background:var(--surface2);color:var(--muted);border:1px solid var(--border2)}
+.abtn-g:hover{background:var(--border);color:var(--text)}
+
+/* ── Audit trail ── */
+.audit-scroll{max-height:220px;overflow-y:auto;padding:0 20px}
+.audit-scroll::-webkit-scrollbar{width:3px}
+.audit-scroll::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.audit-entry{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
+.audit-entry:last-child{border:none}
+.audit-dot{width:7px;height:7px;border-radius:50%;margin-top:3px;flex-shrink:0}
+.audit-time{font-family:var(--mono);font-size:10px;color:var(--muted);white-space:nowrap;padding-top:1px}
+.audit-action{font-size:11px;color:var(--text);line-height:1.5;font-weight:500}
+.audit-sub{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:1px}
+.audit-empty{padding:12px 20px;font-size:12px;color:var(--muted);font-style:italic}
+
+/* ── Reg exposure bars ── */
+.reg-bars{padding:8px 20px}
+.reg-bar-row{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)}
+.reg-bar-row:last-child{border:none}
+.reg-name{font-family:var(--mono);font-size:11px;color:var(--indigo);font-weight:500;min-width:44px}
+.reg-bg{height:5px;background:var(--border);border-radius:3px;flex:1}
+.reg-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--indigo),var(--accent2))}
+.reg-n{font-family:var(--mono);font-size:10px;color:var(--muted);min-width:18px;text-align:right}
+
+/* ── Stats ── */
+.stat-rows{padding:0 20px}
+.stat-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);font-size:12px}
+.stat-row:last-child{border:none}
+.slabel{color:var(--muted);font-weight:500}
+.sval{font-family:var(--mono);font-size:12px;font-weight:500}
+
+/* ── Src note ── */
+.src-note{padding:10px 20px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);line-height:1.6}
+
+.sig{text-align:center;padding:24px 0;font-size:11px;color:var(--muted);border-top:1px solid var(--border);margin-top:32px}
+.sig a{color:var(--indigo);text-decoration:none;font-weight:500}
+
+@media(max-width:1100px){.main-grid{grid-template-columns:1fr}.deadlines-grid{grid-template-columns:repeat(2,1fr)}.kpi-row{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:640px){.kpi-row{grid-template-columns:repeat(2,1fr)}.deadlines-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- Loader -->
+<div id="loader">
+  <div class="loader-logo">
+    <div class="loader-mark">Rw</div>
+    <div class="loader-name">RegWatch</div>
+  </div>
+  <div class="loader-steps">
+    <div class="lstep" id="ls1"><span class="lstep-icon">○</span>Loading regulatory filing calendar...</div>
+    <div class="lstep" id="ls2"><span class="lstep-icon">○</span>Fetching live position data via Polygon.io...</div>
+    <div class="lstep" id="ls3"><span class="lstep-icon">○</span>Running reconciliation and validation checks...</div>
+    <div class="lstep" id="ls4"><span class="lstep-icon">○</span>Mapping exceptions to regulatory obligations...</div>
+    <div class="lstep" id="ls5"><span class="lstep-icon">○</span>Building control dashboard...</div>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+</div>
+
+<div class="shell" id="app" style="display:none">
+
+  <div class="topbar">
+    <div class="logo">
+      <div class="logo-mark">Rw</div>
+      <div>
+        <div class="logo-name">RegWatch</div>
+        <div class="logo-sub">REGULATORY REPORTING CONTROL DASHBOARD · GLOBAL</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span class="timestamp" id="run-time"></span>
+      <div class="badge-live"><div class="dot"></div>LIVE</div>
+      <button class="run-btn" id="run-btn" onclick="startPipeline()">↻ Re-run</button>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpi-row">
+    <div class="kpi" style="--kpi-c:var(--danger)">
+      <div class="kpi-label">Overdue filings</div>
+      <div class="kpi-value" id="kpi-overdue">—</div>
+      <div class="kpi-sub">Require immediate action</div>
+    </div>
+    <div class="kpi" style="--kpi-c:var(--warn)">
+      <div class="kpi-label">Due within 7 days</div>
+      <div class="kpi-value" id="kpi-soon">—</div>
+      <div class="kpi-sub">Upcoming deadlines</div>
+    </div>
+    <div class="kpi" style="--kpi-c:var(--success)">
+      <div class="kpi-label">Filed this quarter</div>
+      <div class="kpi-value" id="kpi-filed">—</div>
+      <div class="kpi-sub">On-time submissions</div>
+    </div>
+    <div class="kpi" style="--kpi-c:var(--accent2)">
+      <div class="kpi-label">Open exceptions</div>
+      <div class="kpi-value" id="kpi-exc">—</div>
+      <div class="kpi-sub">Affecting filings</div>
+    </div>
+    <div class="kpi" style="--kpi-c:var(--indigo)">
+      <div class="kpi-label">Regulators covered</div>
+      <div class="kpi-value">7</div>
+      <div class="kpi-sub">SEC · CFTC · FCA · MAS · NFA · SFC · KFB</div>
+    </div>
+  </div>
+
+  <!-- Filing deadlines -->
+  <div class="section-label">Filing deadline tracker</div>
+  <div class="deadlines-grid" id="deadlines-grid"></div>
+
+  <!-- Main grid -->
+  <div class="main-grid">
+
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-title">Position exception queue</span>
+        <span class="panel-meta" id="exc-meta">—</span>
+      </div>
+      <div class="filters" id="filter-bar"></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Trade ID</th><th>Asset</th><th>Instrument</th>
+              <th>Break type</th><th>Exposure</th><th>Severity</th>
+              <th>Regulator</th><th>Confidence</th>
+            </tr>
+          </thead>
+          <tbody id="exc-tbody"></tbody>
+        </table>
+      </div>
+      <div class="src-note">
+        Live prices via <strong>Polygon.io</strong> · Synthetic trade positions · Field-level reconciliation · Regulatory impact mapped per exception
+      </div>
+    </div>
+
+    <div class="sidebar">
+
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">Exception detail</span>
+          <span class="panel-meta" id="detail-id">— select a row</span>
+        </div>
+        <div class="detail-body" id="detail-body">
+          <div class="detail-empty">← Select an exception to see break detail, regulatory impact, and recommended control action.</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">Audit trail</span>
+          <span class="panel-meta" id="audit-count">0 entries</span>
+        </div>
+        <div id="audit-wrap">
+          <div class="audit-empty">No actions logged yet — escalate or resolve an exception to begin.</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">Exceptions by regulator</span>
+          <span class="panel-meta">This run</span>
+        </div>
+        <div class="reg-bars" id="reg-bars"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">Run statistics</span>
+          <span class="panel-meta" id="stats-time">—</span>
+        </div>
+        <div class="stat-rows" id="stat-rows"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="sig">
+    Built by <a href="https://meghana-l.github.io">Meghana Lakshminarayana Swamy</a> ·
+    MS Business Analytics · University of New Haven ·
+    <a href="mailto:meghana.drlnswamy@gmail.com">meghana.drlnswamy@gmail.com</a>
+  </div>
+</div>
+
+<script>
+const POLYGON_KEY = 'YOUR_POLYGON_API_KEY';
+
+const EQUITIES = ['AAPL','MSFT','NVDA','GS','JPM','BAC','AMZN','META'];
+const FX_PAIRS = [['EUR','USD'],['GBP','USD'],['USD','JPY'],['AUD','USD'],['USD','CHF']];
+const CRYPTO   = ['BTC','ETH','SOL'];
+const CPS      = ['GS Prime','JPM Clearing','Citi Sec','Morgan Sec','Barclays','UBS Sec'];
+const FALLBACK = {
+  AAPL:189.50,MSFT:415.20,NVDA:875.30,GS:438.10,JPM:198.40,BAC:38.90,AMZN:185.20,META:512.30,
+  'EUR/USD':1.0812,'GBP/USD':1.2740,'USD/JPY':156.80,'AUD/USD':0.6530,'USD/CHF':0.9015,
+  BTC:67500,ETH:3420,SOL:145,
+};
+
+// ── TRUE random seed each run ─────────────────────
+function makeRng() {
+  let s = Date.now() ^ (Math.random() * 0xffffffff);
+  return function() {
+    s = (s * 1664525 + 1013904223) & 0xffffffff;
+    return (s >>> 0) / 0xffffffff;
+  };
+}
+
+// ── Filing calendar (real deadlines) ─────────────
+function buildFilings() {
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = today.getMonth();
+  const addDays = (d,n) => { const r = new Date(d); r.setDate(r.getDate()+n); return r; };
+  const fmt = d => d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  const daysFrom = d => Math.round((d - today) / 86400000);
+
+  const qEnds = [new Date(y,2,31),new Date(y,5,30),new Date(y,8,30),new Date(y,11,31)];
+  const nextQEnd = qEnds.find(d => d >= today) || qEnds[3];
+  const prevQEnd = [...qEnds].reverse().find(d => d < today) || new Date(y-1,11,31);
+
+  const defs = [
+    { reg:'SEC',  filing:'Form 13F',             desc:'Quarterly institutional holdings report',          dl: addDays(prevQEnd,45) },
+    { reg:'CFTC', filing:'Large Trader Report',  desc:'Daily large trader position reporting',            dl: addDays(today,1) },
+    { reg:'FCA',  filing:'MiFID II Transaction', desc:'Daily transaction reporting — EU/UK instruments',  dl: addDays(today,1) },
+    { reg:'NFA',  filing:'FOCUS Report',         desc:'Monthly financial & operational report',           dl: new Date(y,m+1,17) },
+    { reg:'SEC',  filing:'Form PF',              desc:'Quarterly private fund systemic risk report',      dl: addDays(nextQEnd,60) },
+    { reg:'MAS',  filing:'MAS 610',              desc:'Monthly balance sheet — Singapore',                dl: new Date(y,m+1,14) },
+    { reg:'CFTC', filing:'Form CPO-PQR',         desc:'Quarterly commodity pool operator report',        dl: addDays(prevQEnd,60) },
+    { reg:'SFC',  filing:'Fund Manager Return',  desc:'Quarterly regulatory return — Hong Kong',         dl: addDays(nextQEnd,21) },
+  ];
+
+  return defs.map(f => {
+    const days = daysFrom(f.dl);
+    const filed = days < -5 && Math.random() > 0.3;
+    let status, color, badgeClass;
+    if (filed)       { status='FILED';    color='#94a3b8'; badgeClass='b-filed'; }
+    else if (days<0) { status='OVERDUE';  color='var(--danger)'; badgeClass='b-overdue'; }
+    else if (days<=7){ status='DUE SOON'; color='var(--warn)'; badgeClass='b-soon'; }
+    else             { status='UPCOMING'; color='var(--success)'; badgeClass='b-upcoming'; }
+    return { ...f, days, filed, status, color, badgeClass, dlStr: fmt(f.dl) };
+  });
+}
+
+// ── Fetch prices ──────────────────────────────────
+async function fetchPrices() {
+  if (POLYGON_KEY === 'YOUR_POLYGON_API_KEY') return { ...FALLBACK };
+  try {
+    const prices = {};
+    const eq = await Promise.allSettled(EQUITIES.map(t =>
+      fetch(`https://api.polygon.io/v2/aggs/ticker/${t}/prev?adjusted=true&apiKey=${POLYGON_KEY}`).then(r=>r.json())
+    ));
+    eq.forEach((r,i) => { prices[EQUITIES[i]] = r.status==='fulfilled'&&r.value.results?.[0] ? r.value.results[0].c : FALLBACK[EQUITIES[i]]; });
+    const fx = await Promise.allSettled(FX_PAIRS.map(([f,t]) =>
+      fetch(`https://api.polygon.io/v1/conversion/${f}/${t}?amount=1&precision=5&apiKey=${POLYGON_KEY}`).then(r=>r.json())
+    ));
+    fx.forEach((r,i) => { const k=`${FX_PAIRS[i][0]}/${FX_PAIRS[i][1]}`; prices[k]=r.status==='fulfilled'&&r.value.converted?r.value.converted:FALLBACK[k]; });
+    const cr = await Promise.allSettled(CRYPTO.map(c =>
+      fetch(`https://api.polygon.io/v2/aggs/ticker/X:${c}USD/prev?adjusted=true&apiKey=${POLYGON_KEY}`).then(r=>r.json())
+    ));
+    cr.forEach((r,i) => { prices[CRYPTO[i]] = r.status==='fulfilled'&&r.value.results?.[0]?r.value.results[0].c:FALLBACK[CRYPTO[i]]; });
+    return prices;
+  } catch(e) { return { ...FALLBACK }; }
+}
+
+// ── Regulator mapping ─────────────────────────────
+function getRegs(asset, bt) {
+  const m = { equity:['SEC','FCA'], fx:['CFTC','FCA','MAS'], futures:['CFTC','NFA'], digital:['CFTC','SEC'] };
+  const regs = [...(m[asset]||['SEC'])];
+  if (bt==='settlement_fail') regs.push('FCA');
+  return [...new Set(regs)].slice(0,2);
+}
+
+// ── Trade generator ───────────────────────────────
+function generateTrades(prices, rng) {
+  const rand  = (a,b) => a + rng()*(b-a);
+  const randi = (a,b) => Math.floor(rand(a,b+1));
+  const pick  = arr => arr[randi(0,arr.length-1)];
+  const seen  = new Set();
+  const tid   = () => { let id; do { id='TRD-'+randi(1000,9999); } while(seen.has(id)); seen.add(id); return id; };
+
+  const pool = [...Array(5).fill('equity'),...Array(3).fill('fx'),...Array(2).fill('futures'),...Array(2).fill('digital')];
+  const BP   = {price_mismatch:.08,quantity_break:.06,commission_error:.05,nostro_break:.04,settlement_fail:.03,wallet_mismatch:.07,rate_discrepancy:.07};
+  const trades = [];
+
+  for (let i=0;i<150;i++) {
+    const asset=pick(pool), cp=pick(CPS);
+    let instrument,basePrice,qty,notional,commission,wallet=null;
+
+    if (asset==='equity') {
+      instrument=pick(EQUITIES);
+      basePrice=(prices[instrument]||FALLBACK[instrument])*(1+rand(-.008,.008));
+      qty=randi(50,8000); notional=basePrice*qty; commission=notional*rand(.0003,.001);
+    } else if (asset==='fx') {
+      const pair=pick(FX_PAIRS); instrument=`${pair[0]}/${pair[1]}`;
+      basePrice=(prices[instrument]||FALLBACK[instrument])*(1+rand(-.001,.001));
+      qty=randi(50000,8000000); notional=qty*basePrice; commission=notional*.00002;
+    } else if (asset==='futures') {
+      const fm={ES:prices.MSFT||5280,NQ:prices.NVDA||18450,CL:82.4,GC:2340,ZN:110.5};
+      instrument=pick(['ES','NQ','CL','GC','ZN']);
+      basePrice=(fm[instrument]||5000)*(1+rand(-.003,.003));
+      qty=randi(1,300); notional=basePrice*qty; commission=qty*rand(1.5,5);
+    } else {
+      instrument=pick(CRYPTO)+'/USD';
+      const sym=instrument.split('/')[0];
+      basePrice=(prices[sym]||FALLBACK[sym])*(1+rand(-.005,.005));
+      qty=parseFloat(rand(.005,15).toFixed(4)); notional=basePrice*qty; commission=notional*rand(.001,.003);
+      wallet='0x'+Array.from({length:10},()=>'0123456789ABCDEF'[randi(0,15)]).join('');
+    }
+
+    const internal={trade_id:tid(),asset_class:asset,instrument,
+      price:parseFloat(basePrice.toFixed(asset==='fx'?5:2)),
+      quantity:parseFloat(qty.toFixed(4)),notional:parseFloat(notional.toFixed(2)),
+      commission:parseFloat(commission.toFixed(2)),cash_position:parseFloat(notional.toFixed(2)),
+      settlement_status:'PENDING',counterparty:cp,wallet_address:wallet};
+
+    const cp_t={...internal};
+    let break_type=null;
+    const elig=Object.entries(BP).filter(([k])=>!(k==='wallet_mismatch'&&asset!=='digital')&&!(k==='rate_discrepancy'&&asset!=='fx'));
+    for (const [bt,prob] of elig) {
+      if (rng()<prob) {
+        if (bt==='price_mismatch'){const d=rand(.005,.03)*(rng()<.5?-1:1);cp_t.price=parseFloat((internal.price*(1+d)).toFixed(5));}
+        else if(bt==='quantity_break'){cp_t.quantity=parseFloat((qty-randi(1,Math.max(1,Math.floor(qty*.08)))).toFixed(4));}
+        else if(bt==='commission_error'){cp_t.commission=parseFloat((internal.commission*rand(1.2,2.0)).toFixed(2));}
+        else if(bt==='nostro_break'){cp_t.cash_position=parseFloat((internal.cash_position*rand(.80,.97)).toFixed(2));}
+        else if(bt==='settlement_fail'){cp_t.settlement_status='FAIL';}
+        else if(bt==='wallet_mismatch'&&wallet){cp_t.wallet_address=wallet.slice(0,-3)+Array.from({length:3},()=>'0123456789ABCDEF'[randi(0,15)]).join('');}
+        else if(bt==='rate_discrepancy'){cp_t.price=parseFloat((internal.price*rand(.980,.999)).toFixed(5));}
+        break_type=bt; break;
+      }
+    }
+    trades.push({internal,cp:cp_t,break_type});
+  }
+  return trades;
+}
+
+// ── Matching engine ───────────────────────────────
+function matchTrades(trades) {
+  const T={price:.001,qty:0,comm:.5,cash:1};
+  const out=[];
+  trades.forEach(({internal:i,cp:c})=>{
+    const pd=Math.abs(i.price-c.price)/(i.price||1);
+    if(pd>T.price) out.push(mkB(i,'price_mismatch','price',i.price,c.price,pd*i.price*i.quantity));
+    const qd=Math.abs(i.quantity-c.quantity);
+    if(qd>T.qty&&c.quantity!==i.quantity) out.push(mkB(i,'quantity_break','quantity',i.quantity,c.quantity,qd*i.price));
+    const cd=Math.abs(i.commission-c.commission);
+    if(cd>T.comm) out.push(mkB(i,'commission_error','commission',i.commission,c.commission,cd));
+    const cashd=Math.abs(i.cash_position-c.cash_position);
+    if(cashd>T.cash&&cd<=T.comm) out.push(mkB(i,'nostro_break','cash_position',i.cash_position,c.cash_position,cashd));
+    if(i.settlement_status!==c.settlement_status) out.push(mkB(i,'settlement_fail','settlement_status',i.settlement_status,c.settlement_status,i.notional));
+    if(i.asset_class==='digital'&&i.wallet_address&&c.wallet_address&&i.wallet_address!==c.wallet_address)
+      out.push(mkB(i,'wallet_mismatch','wallet_address',i.wallet_address,c.wallet_address,i.notional));
+  });
+  out.sort((a,b)=>{const o={critical:1,high:2,medium:3,low:4};return o[a.severity]-o[b.severity]||b.break_amount-a.break_amount;});
+  return out;
+}
+function mkB(t,bt,field,iv,cv,amt){
+  const a=Math.abs(amt);
+  const sev=a>500000?'critical':a>100000?'high':a>10000?'medium':'low';
+  return{trade_id:t.trade_id,asset_class:t.asset_class,instrument:t.instrument,counterparty:t.counterparty,
+    break_type:bt,field,internal_value:String(typeof iv==='number'?parseFloat(iv.toFixed(5)):iv),
+    counterparty_value:String(typeof cv==='number'?parseFloat(cv.toFixed(5)):cv),
+    break_amount:parseFloat(a.toFixed(2)),severity:sev,status:'open',regulators:getRegs(t.asset_class,bt)};
+}
+
+// ── Classifier ────────────────────────────────────
+function classify(ex) {
+  const {instrument:inst,counterparty:cp,break_amount:amt,internal_value:iv,counterparty_value:cv} = ex;
+  const m = {
+    price_mismatch:    { root:`Price discrepancy on ${inst}: internal ${iv} vs ${cp} confirmation ${cv}. Likely stale price feed or venue difference at booking time.`, action:`Verify against exchange official close. Request same-timestamp price from ${cp}. Document reconciliation evidence for filing control record.`, conf:amt>100000?89:84 },
+    rate_discrepancy:  { root:`FX rate mismatch on ${inst}: internal ${iv} vs ${cp} settlement rate ${cv}. Execution timestamp may not align with WM/Reuters fixing window.`, action:`Pull fixing rate at exact execution timestamp. Reconcile vs WM/Reuters 4PM fix. Update MiFID II transaction report if rate affects reportable field.`, conf:91 },
+    quantity_break:    { root:`Position quantity mismatch on ${inst}: internal ${iv} units vs ${cp} confirmation of ${cv}. Partial fill may have been booked as full execution across venues.`, action:`Request fill confirmation breakdown from ${cp}. Correct position before next Large Trader Report deadline. Flag compliance if reportable threshold is crossed.`, conf:amt>50000?94:88 },
+    commission_error:  { root:`Commission overbilled by ${cp} on ${inst}: invoiced ${cv} vs agreed rate of ${iv}. Commission schedule change likely not applied by counterparty.`, action:`Dispute invoice with ${cp} and pull signed commission agreement. No direct filing impact but affects P&L accuracy in NFA FOCUS Report.`, conf:92 },
+    nostro_break:      { root:`Cash position shortfall vs ${cp} nostro ledger on ${inst}. Likely T+1 bank posting lag or unprocessed wire confirmation.`, action:`Monitor at 09:00 next business day. If break persists, escalate to cash management and request SWIFT confirmation from ${cp}. Document for internal controls evidence.`, conf:79 },
+    settlement_fail:   { root:`${cp} confirms settlement failure on ${inst}. Counterparty inventory insufficient for delivery — risk of regulatory fail charge and buy-in.`, action:`Contact ${cp} prime desk immediately. Recall from lending desk if possible. Flag to compliance — settlement fails are reportable to FCA under CSDR regulation.`, conf:62 },
+    wallet_mismatch:   { root:`Digital asset wallet mismatch on ${inst}: internal ${iv} vs custodian record ${cv}. Address rotation likely not propagated to internal systems in time.`, action:`Verify correct wallet address with custodian before settlement window closes. Do not settle until confirmed. Notify compliance — incorrect wallet may affect CFTC digital asset reporting.`, conf:83 },
+  };
+  return m[ex.break_type] || { root:'Requires manual investigation by senior analyst.', action:'Escalate to senior regulatory reporting analyst immediately.', conf:60 };
+}
+
+// ── Audit trail ───────────────────────────────────
+let AUDIT = [];
+function logAudit(action, trade_id, color) {
+  const t = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  AUDIT.unshift({action, trade_id, color, time:t});
+  renderAudit();
+}
+function renderAudit() {
+  document.getElementById('audit-count').textContent = AUDIT.length + ' entr' + (AUDIT.length===1?'y':'ies');
+  const wrap = document.getElementById('audit-wrap');
+  if (!AUDIT.length) { wrap.innerHTML='<div class="audit-empty">No actions logged yet — escalate or resolve an exception to begin.</div>'; return; }
+  wrap.innerHTML = `<div class="audit-scroll">${AUDIT.map(a=>`
+    <div class="audit-entry">
+      <div class="audit-dot" style="background:${a.color}"></div>
+      <div style="flex:1">
+        <div class="audit-action">${a.action}</div>
+        <div class="audit-sub">${a.trade_id} · ${a.time}</div>
+      </div>
+    </div>`).join('')}</div>`;
+}
+
+// ── Render ────────────────────────────────────────
+const apC={equity:'ap-eq',fx:'ap-fx',futures:'ap-fu',digital:'ap-da'};
+const apL={equity:'EQ',fx:'FX',futures:'FU',digital:'DA'};
+const bC={critical:'b-critical',high:'b-high',medium:'b-medium',low:'b-low'};
+const fmt=(n,d=0)=>Number(n).toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d});
+const fmtS=n=>n>=1e6?'$'+fmt(n/1e6,2)+'M':n>=1e3?'$'+fmt(n/1e3,1)+'K':'$'+fmt(n,0);
+
+function renderFilings(filings) {
+  document.getElementById('deadlines-grid').innerHTML = filings.map(f=>`
+    <div class="dc" style="--dc-c:${f.color}">
+      <div class="dc-reg">${f.reg}</div>
+      <div class="dc-filing">${f.filing}</div>
+      <div class="dc-desc">${f.desc}</div>
+      <div class="dc-date">Due: ${f.dlStr}</div>
+      <span class="badge ${f.badgeClass}">${f.status}</span>
+      <div class="dc-days" style="color:${f.color}">
+        ${f.filed?'Submitted ✓':f.days<0?Math.abs(f.days)+' days overdue':f.days===0?'Due today':f.days+' days remaining'}
+      </div>
+    </div>`).join('');
+}
+
+function renderKPIs(filings, exceptions) {
+  document.getElementById('kpi-overdue').textContent = filings.filter(f=>f.status==='OVERDUE').length;
+  document.getElementById('kpi-soon').textContent    = filings.filter(f=>f.status==='DUE SOON').length;
+  document.getElementById('kpi-filed').textContent   = filings.filter(f=>f.filed).length;
+  document.getElementById('kpi-exc').textContent     = exceptions.length;
+}
+
+let STATE = { exceptions:[], filter:'all' };
+
+function renderFilters(exceptions) {
+  const c={all:exceptions.length};
+  exceptions.forEach(e=>{c[e.severity]=(c[e.severity]||0)+1;c[e.asset_class]=(c[e.asset_class]||0)+1;});
+  document.getElementById('filter-bar').innerHTML=[
+    {k:'all',l:`All (${c.all})`},{k:'critical',l:`Critical (${c.critical||0})`},
+    {k:'equity',l:`Equity (${c.equity||0})`},{k:'fx',l:`FX (${c.fx||0})`},
+    {k:'futures',l:`Futures (${c.futures||0})`},{k:'digital',l:`Digital (${c.digital||0})`},
+  ].map(f=>`<button class="fbtn${STATE.filter===f.k?' on':''}" onclick="applyFilter('${f.k}',this)">${f.l}</button>`).join('');
+}
+
+function renderTable(exceptions) {
+  const f=STATE.filter;
+  const data=f==='all'?exceptions:f==='critical'?exceptions.filter(e=>e.severity==='critical'):exceptions.filter(e=>e.asset_class===f);
+  document.getElementById('exc-meta').textContent=`${data.length} exceptions · SQL-matched`;
+  const tbody=document.getElementById('exc-tbody');
+  tbody.innerHTML='';
+  data.forEach(ex=>{
+    const cls=classify(ex);
+    const tr=document.createElement('tr');
+    tr.className='erow';
+    tr.innerHTML=`
+      <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${ex.trade_id}</td>
+      <td><span class="ap ${apC[ex.asset_class]}">${apL[ex.asset_class]}</span></td>
+      <td style="font-weight:600">${ex.instrument}</td>
+      <td style="font-size:11px;color:var(--muted)">${ex.break_type.replace(/_/g,' ')}</td>
+      <td style="font-family:var(--mono);font-size:11px;font-weight:500">${fmtS(ex.break_amount)}</td>
+      <td><span class="badge ${bC[ex.severity]}">${ex.severity}</span></td>
+      <td>${ex.regulators.map(r=>`<span class="reg-pill">${r}</span>`).join('')}</td>
+      <td><div class="cbar-wrap"><div class="cbar"><div class="cfill" style="width:${cls.conf}%"></div></div><span class="cval">${cls.conf}%</span></div></td>`;
+    tr.onclick=()=>showDetail(ex,cls,tr);
+    tbody.appendChild(tr);
+  });
+}
+
+function showDetail(ex, cls, tr) {
+  document.querySelectorAll('.erow').forEach(r=>r.classList.remove('sel'));
+  tr.classList.add('sel');
+  document.getElementById('detail-id').textContent = ex.trade_id;
+  document.getElementById('detail-body').innerHTML=`
+    <div class="drow"><span class="dlabel">Instrument</span><span class="dval">${ex.instrument}</span></div>
+    <div class="drow"><span class="dlabel">Asset class</span><span class="dval">${ex.asset_class}</span></div>
+    <div class="drow"><span class="dlabel">Counterparty</span><span class="dval">${ex.counterparty}</span></div>
+    <div class="drow"><span class="dlabel">Break field</span><span class="dval">${ex.field.replace(/_/g,' ')}</span></div>
+    <div class="drow"><span class="dlabel">Internal value</span><span class="dval" style="color:var(--success)">${ex.internal_value}</span></div>
+    <div class="drow"><span class="dlabel">CP value</span><span class="dval" style="color:var(--danger)">${ex.counterparty_value}</span></div>
+    <div class="break-box">
+      <div class="box-lbl">Break exposure</div>
+      <div class="break-amt">$${fmt(ex.break_amount,2)}</div>
+    </div>
+    <div class="reg-box">
+      <div class="box-lbl" style="color:var(--muted)">Regulatory impact</div>
+      ${ex.regulators.map(r=>`<div class="reg-item"><span class="reg-pill">${r}</span>Filing accuracy affected</div>`).join('')}
+    </div>
+    <div class="ai-box">
+      <div class="box-lbl" style="color:var(--muted)">Root cause & control action</div>
+      <div class="ai-cause">${cls.root}</div>
+      <div class="ai-action-text">→ ${cls.action}</div>
+    </div>
+    <div class="action-row">
+      <button class="abtn abtn-p" id="esc-btn" onclick="doEsc('${ex.trade_id}','${ex.regulators[0]}')">Escalate to compliance</button>
+      <button class="abtn abtn-g" id="res-btn" onclick="doRes('${ex.trade_id}')">Mark resolved</button>
+    </div>`;
+}
+
+function doEsc(tid, reg) {
+  logAudit(`Escalated to compliance — ${reg} filing flagged`, tid, '#dc2626');
+  document.getElementById('esc-btn').textContent='Escalated ✓'; document.getElementById('esc-btn').disabled=true;
+}
+function doRes(tid) {
+  logAudit('Marked resolved — control evidence logged', tid, '#15803d');
+  document.getElementById('res-btn').textContent='Resolved ✓'; document.getElementById('res-btn').disabled=true;
+}
+
+function applyFilter(f, btn) {
+  STATE.filter=f;
+  document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  renderTable(STATE.exceptions);
+  document.getElementById('detail-id').textContent='— select a row';
+  document.getElementById('detail-body').innerHTML='<div class="detail-empty">← Select an exception to see break detail, regulatory impact, and recommended control action.</div>';
+}
+
+function renderRegBars(exceptions) {
+  const c={};
+  exceptions.forEach(e=>e.regulators.forEach(r=>{c[r]=(c[r]||0)+1;}));
+  const sorted=Object.entries(c).sort((a,b)=>b[1]-a[1]);
+  const max=sorted[0]?.[1]||1;
+  document.getElementById('reg-bars').innerHTML=sorted.map(([r,n])=>`
+    <div class="reg-bar-row">
+      <span class="reg-name">${r}</span>
+      <div class="reg-bg"><div class="reg-fill" style="width:${Math.round(n/max*100)}%"></div></div>
+      <span class="reg-n">${n}</span>
+    </div>`).join('');
+}
+
+function renderStats(exceptions) {
+  const exp=exceptions.reduce((s,e)=>s+e.break_amount,0);
+  const sev={};
+  exceptions.forEach(e=>{sev[e.severity]=(sev[e.severity]||0)+1;});
+  document.getElementById('stats-time').textContent=new Date().toLocaleTimeString();
+  document.getElementById('stat-rows').innerHTML=`
+    <div class="stat-row"><span class="slabel">Total positions</span><span class="sval">150</span></div>
+    <div class="stat-row"><span class="slabel">Matched clean</span><span class="sval" style="color:var(--success)">${150-new Set(exceptions.map(e=>e.trade_id)).size}</span></div>
+    <div class="stat-row"><span class="slabel">Exceptions</span><span class="sval" style="color:var(--warn)">${exceptions.length}</span></div>
+    <div class="stat-row"><span class="slabel">Critical</span><span class="sval" style="color:var(--danger)">${sev.critical||0}</span></div>
+    <div class="stat-row"><span class="slabel">Total exposure</span><span class="sval">$${fmt(exp,0)}</span></div>
+    <div class="stat-row"><span class="slabel">Regulators affected</span><span class="sval" style="color:var(--indigo)">${new Set(exceptions.flatMap(e=>e.regulators)).size}</span></div>`;
+}
+
+// ── Loader ────────────────────────────────────────
+function stepLoad(n) {
+  for(let i=1;i<=5;i++){
+    const el=document.getElementById('ls'+i);
+    if(i<n){el.className='lstep done';el.querySelector('.lstep-icon').textContent='✓';}
+    else if(i===n){el.className='lstep active';el.querySelector('.lstep-icon').textContent='→';}
+    else{el.className='lstep';el.querySelector('.lstep-icon').textContent='○';}
+  }
+  document.getElementById('progress').style.width=((n-1)/5*100)+'%';
+}
+function finishLoad() {
+  document.getElementById('progress').style.width='100%';
+  setTimeout(()=>{ document.getElementById('loader').style.display='none'; document.getElementById('app').style.display='block'; },400);
+}
+
+// ── Main pipeline ─────────────────────────────────
+async function startPipeline() {
+  const btn=document.getElementById('run-btn');
+  if(btn){btn.disabled=true;btn.textContent='↻ Running...';}
+  AUDIT=[];
+  renderAudit();
+  if(document.getElementById('app').style.display==='none') document.getElementById('loader').style.display='flex';
+
+  stepLoad(1); await new Promise(r=>setTimeout(r,350));
+  const filings=buildFilings();
+
+  stepLoad(2); await new Promise(r=>setTimeout(r,450));
+  const prices=await fetchPrices();
+
+  stepLoad(3); await new Promise(r=>setTimeout(r,350));
+  const rng=makeRng();
+  const trades=generateTrades(prices,rng);
+
+  stepLoad(4); await new Promise(r=>setTimeout(r,250));
+  const exceptions=matchTrades(trades);
+  STATE.exceptions=exceptions; STATE.filter='all';
+
+  stepLoad(5); await new Promise(r=>setTimeout(r,200));
+  renderFilings(filings);
+  renderKPIs(filings,exceptions);
+  renderFilters(exceptions);
+  renderTable(exceptions);
+  renderRegBars(exceptions);
+  renderStats(exceptions);
+
+  const now=new Date();
+  document.getElementById('run-time').textContent=
+    now.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' · '+
+    now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+
+  finishLoad();
+  if(btn){btn.disabled=false;btn.textContent='↻ Re-run';}
+}
+
+startPipeline();
+</script>
+</body>
+</html>
